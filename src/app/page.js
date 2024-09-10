@@ -1,101 +1,125 @@
+"use client";
+import {
+  Button,
+  Card,
+  CardFooter,
+  CardHeader,
+  Spinner,
+} from "@nextui-org/react";
+import axios from "axios";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
+import InfiniteScroll from "react-infinite-scroll-component";
+import moment from "moment";
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="https://nextjs.org/icons/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              src/app/page.js
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+  const router = useRouter();
+  const [currentPage, setCurrentPage] = useState(0);
+  const [quotes, setQuotes] = useState([]);
+  const [hasMore, setHasMore] = useState(true);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+  const fetchQuotes = useCallback(
+    async (page) => {
+      try {
+        const { data } = await axios.get(
+          `https://assignment.stage.crafto.app/getQuotes?limit=12&offset=${page}`,
+          {
+            headers: {
+              Authorization: localStorage.getItem("session-token"),
+            },
+          }
+        );
+        console.log(data);
+        setCurrentPage(page);
+        if (data?.data?.length) {
+          setQuotes((prev) => [...prev, ...data.data]);
+        } else {
+          setHasMore(false);
+        }
+      } catch (error) {
+        if (error.status === 401) {
+          router.push("/login");
+        }
+      }
+    },
+    [router]
+  );
+
+  useEffect(() => {
+    const token = localStorage.getItem("session-token");
+    if (!token) {
+      router.push("/login");
+    } else {
+      fetchQuotes(0);
+    }
+  }, []);
+
+  return (
+    <div className="post-container container mx-auto px-4">
+      <InfiniteScroll
+        dataLength={quotes.length} //This is important field to render the next data
+        next={() => {
+          fetchQuotes(currentPage + 1);
+        }}
+        hasMore={hasMore}
+        loader={
+          <div
+            style={{ height: "100dvh" }}
+            className="w-full p-4 flex align-items-center justify-center"
           >
-            <Image
-              className="dark:invert"
-              src="https://nextjs.org/icons/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+            <Spinner />
+          </div>
+        }
+        endMessage={
+          <p style={{ textAlign: "center" }}>
+            <b>Yay! You have seen it all</b>
+          </p>
+        }
+        pullDownToRefreshContent={
+          <h3 style={{ textAlign: "center" }}>&#8595; Pull down to refresh</h3>
+        }
+        releaseToRefreshContent={
+          <h3 style={{ textAlign: "center" }}>&#8593; Release to refresh</h3>
+        }
+      >
+        <div className="quotes-container mt-3">
+          {quotes.map((quote) => (
+            <Card key={quote.id} isFooterBlurred className="quote-card">
+              <CardHeader className="absolute z-10 top-1 flex-col items-start">
+                <p title={quote.text} className="quote-text text text-white">
+                  {quote?.text}
+                </p>
+              </CardHeader>
+              <div
+                className="quote-img"
+                style={{
+                  backgroundImage: `linear-gradient(to bottom, rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.4)),url('${quote?.mediaUrl}')`,
+                }}
+              ></div>
+
+              <CardFooter>
+                <div className="flex flex-grow gap-2 items-center">
+                  <div className="flex flex-col">
+                    <p className="text-bold">By {quote?.username}</p>
+                    <p className="text-tiny">
+                      {moment(quote?.updatedAt).format("hh:mm A DD MMM")}
+                    </p>
+                  </div>
+                </div>
+              </CardFooter>
+            </Card>
+          ))}
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
+      </InfiniteScroll>
+      <div className="create-quote-button">
+        <Button
+          onClick={() => router.push("/create-quote")}
+          className="shadow-3 bg-black text-white"
         >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+          + Create Quote
+        </Button>
+      </div>
     </div>
   );
 }
